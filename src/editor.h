@@ -16,6 +16,7 @@ typedef struct Editor {
     const char *filepath;
     bool left_alt_held;
     bool right_alt_held;
+    bool leap_quasimode_held;
     int quit_confirm_count;
 } Editor;
 

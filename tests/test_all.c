@@ -9,6 +9,7 @@
 #include "../src/buffer.h"
 #include "../src/cursor.h"
 #include "../src/leap.h"
+#include "../src/editor.h"
 
 static int g_tests_run = 0;
 #define TEST(name) static void test_##name(void); \
@@ -313,6 +314,173 @@ TEST(buffer_file_io) {
     remove(test_path);
 }
 
+TEST(editor_legacy_alt_ll_and_erase) {
+    Editor ed;
+    editor_init(&ed, NULL);
+
+    /* Modeless typing: "Hello World" */
+    const char *text = "Hello World";
+    for (size_t i = 0; text[i] != '\0'; i++) {
+        InputEvent ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.key = text[i];
+        ev.utf8[0] = text[i];
+        ev.utf8_len = 1;
+        editor_process_event(&ed, &ev);
+    }
+    assert(buffer_length(ed.buf) == 11);
+    assert(ed.cursor.pencil_pos == 11);
+
+    /* First Alt+l in legacy terminal */
+    InputEvent ev_alt_l1;
+    memset(&ev_alt_l1, 0, sizeof(ev_alt_l1));
+    ev_alt_l1.key = 'l';
+    ev_alt_l1.modifiers = MOD_ALT;
+    ev_alt_l1.utf8[0] = 'l';
+    ev_alt_l1.utf8_len = 1;
+    editor_process_event(&ed, &ev_alt_l1);
+
+    assert(ed.leap.active);
+    assert(ed.leap.direction == LEAP_DIR_BACKWARD);
+    assert(strcmp(ed.leap.query, "l") == 0);
+    assert(ed.cursor.eraser_start == 9 && ed.cursor.eraser_end == 10); /* 'l' in "World" */
+
+    /* Second Alt+l in legacy terminal */
+    InputEvent ev_alt_l2;
+    memset(&ev_alt_l2, 0, sizeof(ev_alt_l2));
+    ev_alt_l2.key = 'l';
+    ev_alt_l2.modifiers = MOD_ALT;
+    ev_alt_l2.utf8[0] = 'l';
+    ev_alt_l2.utf8_len = 1;
+    editor_process_event(&ed, &ev_alt_l2);
+
+    assert(ed.leap.active);
+    assert(strcmp(ed.leap.query, "ll") == 0);
+    assert(ed.cursor.eraser_start == 2 && ed.cursor.eraser_end == 4); /* "ll" in "Hello" */
+    assert(ed.cursor.pencil_pos == 4);
+
+    /* Release Alt and press Backspace (ERASE) */
+    InputEvent ev_bs;
+    memset(&ev_bs, 0, sizeof(ev_bs));
+    ev_bs.key = KEY_BACKSPACE;
+    editor_process_event(&ed, &ev_bs);
+
+    assert(!ed.leap.active);
+    char *result = buffer_to_string(ed.buf, NULL);
+    assert(strcmp(result, "Heo World") == 0);
+    free(result);
+
+    editor_free(&ed);
+}
+
+TEST(editor_csi_u_leap_and_erase) {
+    Editor ed;
+    editor_init(&ed, NULL);
+
+    /* Load "Hello World" */
+    buffer_insert(ed.buf, 0, "Hello World", 11);
+    ed.cursor.pencil_pos = 11;
+    cursor_coalesce_at(&ed.cursor, 10, 11);
+
+    /* CSI u KEY_LEFT_ALT press */
+    InputEvent ev_alt_down;
+    memset(&ev_alt_down, 0, sizeof(ev_alt_down));
+    ev_alt_down.key = KEY_LEFT_ALT;
+    ev_alt_down.type = EVENT_PRESS;
+    editor_process_event(&ed, &ev_alt_down);
+    assert(ed.leap.active);
+    assert(ed.leap.direction == LEAP_DIR_BACKWARD);
+
+    /* Type 'l' */
+    InputEvent ev_l1;
+    memset(&ev_l1, 0, sizeof(ev_l1));
+    ev_l1.key = 'l';
+    ev_l1.modifiers = MOD_ALT;
+    ev_l1.utf8[0] = 'l';
+    ev_l1.utf8_len = 1;
+    editor_process_event(&ed, &ev_l1);
+    assert(ed.cursor.eraser_start == 9 && ed.cursor.eraser_end == 10);
+
+    /* Type 'l' */
+    InputEvent ev_l2;
+    memset(&ev_l2, 0, sizeof(ev_l2));
+    ev_l2.key = 'l';
+    ev_l2.modifiers = MOD_ALT;
+    ev_l2.utf8[0] = 'l';
+    ev_l2.utf8_len = 1;
+    editor_process_event(&ed, &ev_l2);
+    assert(ed.cursor.eraser_start == 2 && ed.cursor.eraser_end == 4);
+
+    /* CSI u KEY_LEFT_ALT release */
+    InputEvent ev_alt_up;
+    memset(&ev_alt_up, 0, sizeof(ev_alt_up));
+    ev_alt_up.key = KEY_LEFT_ALT;
+    ev_alt_up.type = EVENT_RELEASE;
+    editor_process_event(&ed, &ev_alt_up);
+    assert(!ed.leap.active);
+
+    /* Backspace to erase match */
+    InputEvent ev_bs;
+    memset(&ev_bs, 0, sizeof(ev_bs));
+    ev_bs.key = KEY_BACKSPACE;
+    editor_process_event(&ed, &ev_bs);
+
+    char *result = buffer_to_string(ed.buf, NULL);
+    assert(strcmp(result, "Heo World") == 0);
+    free(result);
+
+    editor_free(&ed);
+}
+
+TEST(editor_modal_search_and_repeat) {
+    Editor ed;
+    editor_init(&ed, NULL);
+
+    buffer_insert(ed.buf, 0, "cats and dogs and cats", 22);
+    ed.cursor.pencil_pos = 0;
+    ed.cursor.eraser_start = 0;
+    ed.cursor.eraser_end = 0;
+
+    /* Ctrl-F */
+    InputEvent ev_ctrl_f;
+    memset(&ev_ctrl_f, 0, sizeof(ev_ctrl_f));
+    ev_ctrl_f.key = 'f';
+    ev_ctrl_f.modifiers = MOD_CTRL;
+    editor_process_event(&ed, &ev_ctrl_f);
+    assert(ed.leap.active);
+    assert(ed.leap.direction == LEAP_DIR_FORWARD);
+    assert(ed.leap.query_len == 0);
+
+    /* Type 'c', 'a', 't' */
+    const char *q = "cat";
+    for (int i = 0; q[i]; i++) {
+        InputEvent ev;
+        memset(&ev, 0, sizeof(ev));
+        ev.key = q[i];
+        ev.utf8[0] = q[i];
+        ev.utf8_len = 1;
+        editor_process_event(&ed, &ev);
+    }
+    assert(ed.cursor.eraser_start == 0 && ed.cursor.eraser_end == 3);
+
+    /* Tab: cycle to next "cat" */
+    InputEvent ev_tab;
+    memset(&ev_tab, 0, sizeof(ev_tab));
+    ev_tab.key = KEY_TAB;
+    editor_process_event(&ed, &ev_tab);
+    assert(ed.cursor.eraser_start == 18 && ed.cursor.eraser_end == 21);
+
+    /* Enter: commit */
+    InputEvent ev_enter;
+    memset(&ev_enter, 0, sizeof(ev_enter));
+    ev_enter.key = KEY_ENTER;
+    editor_process_event(&ed, &ev_enter);
+    assert(!ed.leap.active);
+    assert(ed.cursor.eraser_start == 18 && ed.cursor.eraser_end == 21);
+
+    editor_free(&ed);
+}
+
 int main(void) {
     printf("Running memo automated test suite:\n");
     run_buffer_insert_and_text();
@@ -325,6 +493,9 @@ int main(void) {
     run_leap_case_sensitivity();
     run_leap_creep();
     run_buffer_file_io();
+    run_editor_legacy_alt_ll_and_erase();
+    run_editor_csi_u_leap_and_erase();
+    run_editor_modal_search_and_repeat();
 
     printf("\nAll %d tests passed successfully!\n", g_tests_run);
     return 0;

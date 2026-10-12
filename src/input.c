@@ -77,6 +77,10 @@ static int parse_csi_u(const char *seq, InputEvent *ev) {
         ev->modifiers |= MOD_LEFT_ALT | MOD_ALT;
     } else if (keycode == KEY_RIGHT_ALT) {
         ev->modifiers |= MOD_RIGHT_ALT | MOD_ALT;
+    } else if (keycode >= 32 && keycode <= 126) {
+        ev->utf8[0] = (char)keycode;
+        ev->utf8[1] = '\0';
+        ev->utf8_len = 1;
     }
 
     return 1;

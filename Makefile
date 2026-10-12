@@ -21,7 +21,7 @@ all: $(TARGET)
 $(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) $(OBJ) -o $(TARGET) $(LDFLAGS)
 
-TEST_SRC = tests/test_all.c src/buffer.c src/cursor.c src/leap.c
+TEST_SRC = tests/test_all.c src/buffer.c src/cursor.c src/leap.c src/render.c src/terminal.c src/input.c src/editor.c
 TEST_TARGET = test_runner
 
 test: $(TEST_SRC)
