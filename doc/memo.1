@@ -1,0 +1,51 @@
+.TH MEMO 1 "October 2026" "memo 0.1.0" "User Commands"
+.SH NAME
+memo \- lightweight Canon Cat inspired text editor
+.SH SYNOPSIS
+.B memo
+[\fIOPTIONS\fR] [\fIFILE\fR]
+.SH DESCRIPTION
+.B memo
+is a lightweight, zero-dependency, POSIX-compliant full-screen text editor
+that implements the modeless editing and LEAP navigation paradigm of the
+Canon Cat work processor.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Display help summary and exit.
+.TP
+\fB\-v\fR, \fB\-\-version\fR
+Display version information and exit.
+.SH NAVIGATION & EDITING
+.TP
+\fBRight-ALT (held)\fR
+LEAP Forward: increments search string and teleports cursor toward end of buffer.
+.TP
+\fBLeft-ALT (held)\fR
+LEAP Backward: increments search string and teleports cursor toward start of buffer.
+.TP
+\fBLeft-ALT + Right-ALT\fR
+LEAP Both: engages selection span between the leap origin and destination.
+.TP
+\fBArrow Keys\fR
+Local micro-navigation (Up, Down, Left, Right).
+.TP
+\fBBackspace\fR / \fBDelete\fR
+ERASE: deletes character or highlighted span.
+.TP
+\fBAlt-M\fR
+MOVE: relocates highlighted selection to current cursor position.
+.TP
+\fBAlt-C\fR
+COPY: duplicates highlighted selection to current cursor position.
+.TP
+\fBAlt-U\fR / \fBCtrl-Z\fR
+UNDO: reverses last editing transaction.
+.TP
+\fBCtrl-S\fR
+Saves buffer atomically to disk.
+.TP
+\fBCtrl-Q\fR
+Exits memo (prompts if unsaved changes exist).
+.SH AUTHORS
+memo was created following the design principles of Jef Raskin.

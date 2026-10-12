@@ -1,0 +1,32 @@
+# Build artifacts
+memo
+*.o
+*.d
+*.a
+*.so
+
+# Editor temporary & backup files
+*~
+*.swp
+*.swo
+*.bak
+.memo.bak
+.memo_tmp.*
+
+# Debug & profile files
+*.gcno
+*.gcda
+*.gcov
+gmon.out
+vgcore.*
+core
+
+# IDE & Editor configs
+.vscode/
+.idea/
+compile_commands.json
+.clangd/
+
+# OS specific
+.DS_Store
+Thumbs.db
